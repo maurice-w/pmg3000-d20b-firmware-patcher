@@ -1,83 +1,45 @@
-```
- _   _               _       ____  ____    ___   _   _ 
-| | | |  __ _   ___ | | __  / ___||  _ \  / _ \ | \ | |
-| |_| | / _` | / __|| |/ / | |  _ | |_) || | | ||  \| |
-|  _  || (_| || (__ |   <  | |_| ||  __/ | |_| || |\  |
-|_| |_| \__,_| \___||_|\_\  \____||_|     \___/ |_| \_|
-```
+# PMG3000-D20B firmware patcher
 
-# Zyxel PMG3000-d20b firmware mod kit
+## Disclaimer
+__Flashing random stuff you found on the Internet can brick your ONT. This script has been tested and the resulting images work for me, but it is in no way a robust piece of software.
+There's essentially no error handling or input validation. If you feed it garbage, it will output garbage. Even if the resulting image is valid, things can go wrong while flashing it.
+Anything you do with this script is solely your responsibility.__
 
-> [!IMPORTANT] 
-> See https://hack-gpon.org/ont-zyxel-pmg3000-d20b/ before use this mod kit.
+## Purpose
+This script adds an outer header to Zyxel PMG3000-D20B firmware flash dumps (mtd2 / mtd3).
+The resulting image can be flashed using the module's web interface (Management | Update Software).  
+The updater validates this header, but removes it before writing the image to flash.
+That's why raw mtd2 / mtd3 flash dumps don't have this header and can't be flashed using the web interface.
 
-## Prerequisites
-- Linux os
-- firmware-mod-kit built. Use https://github.com/st-ty1/Arch-Linux_firmware-mod-kit on a modern distro
-- an mtd dump of the rootfs to be modded
+On firmware V1.00(ABVJ.1), the module's SSH server is disabled. If a supported image is detected (currently V1.00(ABVJ.1)b1i and V1.00(ABVJ.1)b1j), the script enables the SSH server by patching the rootfs.
 
 ## Usage
-- Edit build.sh, changing the settings at the top
-- Run build.sh as root
-- The script will tell you where the new mtd is
+```
+./mod.sh FILE
+```
+`FILE` is a raw mtd2 / mtd3 flash dump (3.735.552 bytes).
+Flash dumps can be extracted from a running module using SSH or the serial console.
+A collection is also available in [this gist](https://gist.github.com/maurice-w/faeb60bf8201ce70391873bcb9059bc2).
 
-## Flashing
-
-> [!IMPORTANT] 
-> See https://hack-gpon.org/ont-zyxel-pmg3000-d20b/ for up-to-date command.
-
-Note: all commands start from the twmanu shell
-- Transfer the new mtd on the stick via tftp
+## Output
 ```
-linuxshell
-tftp -gr mtd2.mod.bin TFTP_SERVER_IP
-```
-- Flash it on the standby partition. 
-You can use `system` and then `show actimage` to get the current active image. Check `/proc/mtd` for the right mtds. Usually:
-- if the currect active image is A the mtd in use is mtd2
-- If the current active image is B the mtd in use is mtd3
-```
-linuxshell
-mtd -e /dev/mtd2 write /tmp/mtd2.mod.bin /dev/mtd2
-```
-- Switch to the new image
-```
-system
-set actimage a
-```
-- Reboot the ONT
-```
-system
-reboot
+firmware.upf      Firmware image with outer header
+firmware_ssh.upf  Patched firmware image with outer header (SSH server enabled)
 ```
 
-## Other tibits
+## Prerequisites
 
-> [!IMPORTANT] 
-> See https://hack-gpon.org/ont-zyxel-pmg3000-d20b/ for up-to-date command.
-
-## Change PLOAM
-Use the web UI
-## Change ONT S/N
-```
-manufactory
-set sn ALCLf0f0f0f0
-exit
-hal
-set sn ALCLf0f0f0f0
-```
-## Change ONT equipment ID
-Note: model number must be 20 chars total (or less?)
+The script depends on [firmware-mod-kit](https://github.com/rampageX/firmware-mod-kit). An easy way of setting this up is using a Kali Linux container. Kali offers firmware-mod-kit as a package.
 
 ```
-manufactory
-set equipment id __________G-010G-R__
-exit
-omci
-equipment id __________G-010G-R__
-```
-## Change hardware version
-```
-manufactory
-set hardware version 3FE49165BFAA01
+$ podman pull kali-rolling
+$ podman run --tty --interactive kali-rolling
+
+# apt update && apt install -y bsdextrautils dropbear firmware-mod-kit python2 xxd
+# ln -s /usr/bin/python2 /usr/bin/python
+
+# git clone https://github.com/maurice-w/pmg3000-d20b-firmware-patcher
+# cd pmg3000-d20b-firmware-patcher
+
+# ./patch.sh mtd2.img
 ```
