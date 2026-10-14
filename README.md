@@ -15,7 +15,7 @@ On firmware V1.00(ABVJ.1), the module's SSH server is disabled. If a supported i
 
 ## Usage
 ```
-./mod.sh FILE
+./patch.sh FILE
 ```
 `FILE` is a raw mtd2 / mtd3 flash dump (3.735.552 bytes).
 Flash dumps can be extracted from a running module using SSH or the serial console.
