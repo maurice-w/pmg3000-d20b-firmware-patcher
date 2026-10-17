@@ -27,21 +27,22 @@ function firmware_crc {
     echo -e "${crc}" | dd of="$5" bs=1 seek=$1 count=4 conv=notrunc
 }
 
-# Clean-up from previous run
+echo "Cleaning up..."
 rm -rf fmk
 rm -f "$FIRMWARE_OUT"
 rm -f "$FIRMWARE_OUT_SSH"
 
-# Add outer header to image
+echo "Adding outer header to image..."
 cat header "$FIRMWARE_IN" > "$FIRMWARE_OUT"
+echo "Copying firmware version string to outer header..."
 dd if="$FIRMWARE_OUT" of="$FIRMWARE_OUT" bs=1 skip=632 seek=124 count=32 conv=notrunc
-firmware_crc 104 0 0 3736064 "$FIRMWARE_OUT" # checksum of entire image, written to outer header
+echo "Writing checksum of image (with outer header) to outer header..."
+firmware_crc 104 0 0 3736064 "$FIRMWARE_OUT"
 
-# Apply SSH patch to supported images only (V1.00(ABVJ.1)b1i, V1.00(ABVJ.1)b1j)
 firmware_in_sha256=$(sha256sum "$FIRMWARE_IN" | awk '{print $1}')
 case "$firmware_in_sha256" in
     "ae899ff3e9d1bc1cebed3bc1f47f5c0e449884f5f95c03a677a7549ab5555b1c" | "a9299366433813410783c425e4076fb3fbf7afa79e5894a39a442cdc8aa11512")
-        echo "Enabling dropbear..."
+        echo "V1.00(ABVJ.1)b1i or V1.00(ABVJ.1)b1j detected, enabling Dropbear SSH server..."
         $FMK_EXTRACT "$FIRMWARE_IN"
         cp -a fmk/rootfs/usr/sbin/dropbear fmk/rootfs/usr/local/bin/
         mkdir -m 775 fmk/rootfs/etc/dropbear
@@ -49,11 +50,16 @@ case "$firmware_in_sha256" in
         chmod 775 fmk/rootfs/etc/dropbear/dropbear_rsa_host_key
         rm fmk/rootfs/etc/dropbear/dropbear_rsa_host_key.pub
         $FMK_BUILD
+        echo "Adding outer header to patched image..."
         cat header fmk/new-firmware.bin > "$FIRMWARE_OUT_SSH"
+        echo "Copying firmware version string of patched image to outer header..."
         dd if="$FIRMWARE_OUT_SSH" of="$FIRMWARE_OUT_SSH" bs=1 skip=632 seek=124 count=32 conv=notrunc
-        firmware_crc 540 1 1024 3669504 "$FIRMWARE_OUT_SSH" # checksum of image without headers and last 64 kiB block, written to inner header
-        firmware_crc 544 1 512  512     "$FIRMWARE_OUT_SSH" # checksum of inner header, written to inner header
-        firmware_crc 104 0 0    3736064 "$FIRMWARE_OUT_SSH" # checksum of entire image, written to outer header
+        echo "Writing checksum of patched image (without headers and last 64 kiB block) to inner header..."
+        firmware_crc 540 1 1024 3669504 "$FIRMWARE_OUT_SSH"
+        echo "Writing checksum of inner header of patched image to inner header..."
+        firmware_crc 544 1 512  512     "$FIRMWARE_OUT_SSH"
+        echo "Writing checksum of patched image (with outer header) to outer header..."
+        firmware_crc 104 0 0    3736064 "$FIRMWARE_OUT_SSH"
         ;;
     *)
         echo "SSH patch not supported for this image"
